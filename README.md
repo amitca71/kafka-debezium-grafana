@@ -1,6 +1,6 @@
 # Debezium Unwrap SMT Demo
 
-This setup is going to demonstrate how to receive events from MySQL database and stream them down to a PostgreSQL database and/or an Elasticsearch server using the [Debezium Event Flattening SMT](https://debezium.io/docs/configuration/event-flattening/).
+This setup is going to demonstrate how to receive events from MySQL database and save it to postgresql.
 
 ## Table of Contents
 
@@ -90,7 +90,7 @@ docker-compose -f docker-compose.yaml exec mysql bash -c 'mysql -u $MYSQL_USER  
 Verify that the PostgreSQL database has the same content:
 
 ```shell
-docker-compose -f docker-compose-jdbc.yaml exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
+docker-compose exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
  last_name |  id  | first_name |         email         
 -----------+------+------------+-----------------------
  Thomas    | 1001 | Sally      | sally.thomas@acme.com
@@ -112,7 +112,7 @@ Query OK, 1 row affected (0.02 sec)
 Verify that PostgreSQL contains the new record:
 
 ```shell
-docker-compose -f docker-compose-jdbc.yaml exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
+docker-compose exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
  last_name |  id  | first_name |         email         
 -----------+------+------------+-----------------------
 ...
@@ -133,7 +133,7 @@ Rows matched: 1  Changed: 1  Warnings: 0
 Verify that record in PostgreSQL is updated:
 
 ```shell
-docker-compose -f docker-compose-jdbc.yaml  exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
+docker-compose  exec postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB -c "select * from customers"'
  last_name |  id  | first_name |         email         
 -----------+------+------------+-----------------------
 ...
@@ -167,4 +167,4 @@ End application:
 
 ```shell
 # Shut down the cluster
-docker-compose -f docker-compose-jdbc.yaml down
+docker-compose down
