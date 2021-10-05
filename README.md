@@ -10,15 +10,6 @@ This setup is going to demonstrate how to receive events from MySQL database and
     * [New record](#new-record)
     * [Record update](#record-update)
     * [Record delete](#record-delete)
-* [Elasticsearch Sink](#elasticsearch-sink)
-  * [Topology](#topology-1)
-  * [Usage](#usage-1)
-    * [New record](#new-record-1)
-    * [Record update](#record-update-1)
-    * [Record delete](#record-delete-1)
-* [Two Parallel Sinks](#two-parallel-sinks)
-  * [Topology](#topology-2)
-  * [Usage](#usage-2)
 
 ## JDBC Sink
 
@@ -52,6 +43,7 @@ This setup is going to demonstrate how to receive events from MySQL database and
 
 ```
 We are using Docker Compose to deploy following components
+* Postgresql
 * MySQL
 * Kafka
   * ZooKeeper
@@ -66,7 +58,9 @@ How to run:
 ```shell
 # Start the application
 export DEBEZIUM_VERSION=1.4
-docker-compose -f docker-compose-jdbc.yaml up
+docker-compose up -d
+# watch grafana at http://localhost:3000/ (admin/admin)
+
 
 # Start PostgreSQL connector
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:8083/connectors/ -d @jdbc-sink.json
@@ -74,6 +68,10 @@ curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json"
 # Start MySQL connector
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://localhost:8083/connectors/ -d @source.json
 ```
+# on localhost:3000 (admin/admin)  select debezium source and mysql as following:
+
+![image](https://user-images.githubusercontent.com/5821916/135983691-97d7deb3-5f39-423e-8c6b-49567dea9849.png)
+
 
 Check contents of the MySQL database:
 
