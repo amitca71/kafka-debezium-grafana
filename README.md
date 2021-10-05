@@ -1,4 +1,4 @@
-# Debezium Unwrap SMT Demo
+# Debezium Mysql to Postgresql (inspired by  Debezium Unwrap SMT Demo)
 
 This setup is going to demonstrate how to receive events from MySQL database and save it to postgresql.
 
