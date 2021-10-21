@@ -1,27 +1,41 @@
 version: '2'
 services:
   zookeeper:
-    image: debezium/zookeeper:${DEBEZIUM_VERSION}
+    image: debezium/zookeeper:1.4
     ports:
      - 2181:2181
      - 2888:2888
      - 3888:3888
+    volumes:
+     - ./shared-assets/jmx-exporter/:/kafka/etc
+    environment:
+    - JMXHOST=localhost
+    - JMXPORT=1976  
+    - SERVER_JVMFLAGS=-javaagent:/kafka/etc/jmx_prometheus_javaagent-0.16.1.jar=7070:/kafka/etc/zookeeper.yml
+    ports:
+      - 7070:7070
+    networks:
+      - spark
   kafka:
-    image: debezium/kafka:${DEBEZIUM_VERSION}
+    image: debezium/kafka:1.4
     ports:
      - 9092:9092
     links:
      - zookeeper
     environment:
      - ZOOKEEPER_CONNECT=zookeeper:2181
+    networks:
+     - spark
   mysql:
-    image: debezium/example-mysql:${DEBEZIUM_VERSION}
+    image: debezium/example-mysql:1.4
     ports:
      - 3306:3306
     environment:
      - MYSQL_ROOT_PASSWORD=debezium
      - MYSQL_USER=mysqluser
      - MYSQL_PASSWORD=mysqlpw 
+    networks:
+     - spark
   postgres:
     image: debezium/postgres:9.6
     ports:
@@ -30,12 +44,14 @@ services:
      - POSTGRES_USER=postgresuser
      - POSTGRES_PASSWORD=postgrespw
      - POSTGRES_DB=inventory
+    networks:
+     - spark
 
   connect:
     build:
       context: debezium-jdbc-jmx
       args:
-        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
+        DEBEZIUM_VERSION: 1.4
         JMX_AGENT_VERSION: 0.15.0
     ports:
      - 8083:8083
@@ -53,9 +69,13 @@ services:
      - STATUS_STORAGE_TOPIC=my_connect_statuses
      - KAFKA_OPTS=-javaagent:/kafka/etc/jmx_prometheus_javaagent.jar=8080:/kafka/etc/config.yml
      - JMXHOST=localhost
-     - JMXPORT=1976     
+     - JMXPORT=1976 
+    networks:
+     - spark    
 
   prometheus:
+    hostname: prometheus
+    container_name: prometheus
     build:
       context: debezium-prometheus
       args:
@@ -64,6 +84,9 @@ services:
       - 9090:9090
     links:
       - connect
+      - zookeeper
+    networks:
+      - spark
 
   grafana:
     build:
@@ -76,3 +99,92 @@ services:
       - prometheus
     environment:
       - DS_PROMETHEUS=prometheus
+    networks:
+      - spark
+
+  s3:
+    image: minio/minio
+    container_name: s3
+    volumes:
+        - ./buckets:/data:consistent
+    expose:
+        - "9000"
+    ports:
+        - "9000:9000"
+    environment:
+        - MINIO_ACCESS_KEY=minio
+        - MINIO_SECRET_KEY=minio123
+    command: minio server /data
+    networks:
+      - spark
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+        interval: 30s
+        timeout: 20s
+        retries: 3
+
+  spark:
+    build: 
+      context: docker-spark
+    hostname: spark
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+#      - PYSPARK_SUBMIT_ARGS=--packages com.amazonaws:aws-java-sdk-bundle:1.11.819,org.apache.hadoop:hadoop-aws:3.2.0 pyspark-shell,io.delta:delta-core_2.12:0.8.0
+    ports:
+      - '8080:8080'
+      - '7077:7077'
+    networks:
+      - spark
+  spark-worker-1:
+    build: 
+      context: docker-spark
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+#      - PYSPARK_SUBMIT_ARGS=--packages com.amazonaws:aws-java-sdk-bundle:1.11.819,org.apache.hadoop:hadoop-aws:3.2.0 pyspark-shell
+    ports:
+      - '8091:8081'
+    networks:
+        - spark
+  spark-worker-2:
+    build: 
+      context: docker-spark
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+#      - PYSPARK_SUBMIT_ARGS=--packages com.amazonaws:aws-java-sdk-bundle:1.11.819,org.apache.hadoop:hadoop-aws:3.2.0 pyspark-shell
+    networks:
+      - spark
+        # jupyterlab with pyspark
+  pyspark:
+    hostname: "pyspark"
+    image: jupyter/pyspark-notebook:latest
+    environment:
+      - JUPYTER_ENABLE_LAB="no"
+      - PYSPARK_SUBMIT_ARGS=--packages com.databricks:dbutils-api_2.12:0.0.5,io.delta:delta-core_2.12:1.0.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.0.2,com.amazonaws:aws-java-sdk-bundle:1.11.819,org.apache.hadoop:hadoop-aws:3.2.0 pyspark-shell --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog pyspark-shell 
+    ports:
+      - "9999:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    networks:
+      - spark
+
+networks:
+  spark:
+#docker-compose exec pyspark bash -c "jupyter server list"
